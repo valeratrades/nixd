@@ -37,13 +37,20 @@ bool nixd::fromJSON(const Value &Params, Configuration::NixpkgsProvider &R,
   return O && O.mapOptional("expr", R.expr);
 }
 
+bool nixd::fromJSON(const Value &Params, Configuration::SchemaDirective &R,
+                    llvm::json::Path P) {
+  ObjectMapper O(Params, P);
+  return O && O.mapOptional("enable", R.enable);
+}
+
 bool nixd::fromJSON(const Value &Params, Configuration &R, llvm::json::Path P) {
   ObjectMapper O(Params, P);
-  return O                                            //
-         && O.mapOptional("formatting", R.formatting) //
-         && O.mapOptional("options", R.options)       //
-         && O.mapOptional("nixpkgs", R.nixpkgs)       //
-         && O.mapOptional("diagnostic", R.diagnostic) //
+  return O                                                      //
+         && O.mapOptional("formatting", R.formatting)           //
+         && O.mapOptional("options", R.options)                 //
+         && O.mapOptional("nixpkgs", R.nixpkgs)                 //
+         && O.mapOptional("diagnostic", R.diagnostic)           //
+         && O.mapOptional("schemaDirective", R.schemaDirective) //
       ;
 }
 
@@ -58,6 +65,7 @@ void Controller::updateConfig(Configuration NewConfig) {
   Config = std::move(NewConfig);
 
   if (!Config.nixpkgs.expr.empty()) {
+    NixpkgsExpr = Config.nixpkgs.expr;
     /// Evaluate nixpkgs and options, using user-provided config.
     if (nixpkgsClient()) {
       evalExprWithProgress(*nixpkgsClient(), Config.nixpkgs.expr,
@@ -71,7 +79,7 @@ void Controller::updateConfig(Configuration NewConfig) {
       auto &Client = Options[Name];
       if (!Client) {
         // If it does not exist. Launch a new client.
-        startOption(Name, Client);
+        Client = startOption(Name);
       }
       assert(Client);
       evalExprWithProgress(*Client->client(), Opt.expr, Name);

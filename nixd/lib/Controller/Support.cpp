@@ -1,4 +1,7 @@
+#include "SchemaDirective.h"
+
 #include "nixd/Controller/Controller.h"
+#include "nixd/Eval/Launch.h"
 
 #include <nixf/Basic/Diagnostic.h>
 #include <nixf/Parse/Parser.h>
@@ -17,7 +20,77 @@ void Controller::removeDocument(lspserver::PathRef File) {
     std::lock_guard _(TUsLock);
     TUs.erase(File);
   }
+  releaseSchemaDirective(File);
   publishDiagnostics(File, std::nullopt, "", {});
+}
+
+Controller::OptionProviders Controller::optionProviders(PathRef File) {
+  {
+    std::lock_guard _(DocOptionsLock);
+    if (auto It = DocSchema.find(File); It != DocSchema.end()) {
+      if (auto Worker = DocOptions.find(It->second); Worker != DocOptions.end())
+        return {*Worker};
+    }
+  }
+  std::lock_guard _(OptionsLock);
+  return {Options.begin(), Options.end()};
+}
+
+void Controller::releaseSchemaDirective(PathRef File) {
+  std::lock_guard _(DocOptionsLock);
+  if (!DocSchema.erase(File))
+    return;
+  for (auto It = DocOptions.begin(); It != DocOptions.end();) {
+    const bool Referenced = llvm::any_of(DocSchema, [&It](const auto &Entry) {
+      return Entry.second == It->first;
+    });
+    It = Referenced ? std::next(It) : DocOptions.erase(It);
+  }
+}
+
+void Controller::updateSchemaDirective(PathRef File, std::string_view Src) {
+  std::string Nixpkgs;
+  {
+    std::lock_guard _(ConfigLock);
+    if (!Config.schemaDirective.enable)
+      return;
+    Nixpkgs = NixpkgsExpr;
+  }
+  if (Nixpkgs.empty())
+    return;
+
+  std::optional<std::string> Resolved;
+  if (auto Directive = parseSchemaDirective(Src))
+    Resolved = resolveSchemaPath(*Directive, File, WorkspaceRoot);
+
+  std::shared_ptr<AttrSetClientProc> Launched;
+  {
+    std::lock_guard _(DocOptionsLock);
+    auto It = DocSchema.find(File);
+    const llvm::StringRef Old = It == DocSchema.end() ? "" : It->second;
+    if (Old == Resolved.value_or(""))
+      return;
+
+    if (!Resolved) {
+      DocSchema.erase(File);
+    } else {
+      DocSchema[File] = *Resolved;
+      auto &Worker = DocOptions[*Resolved];
+      if (!Worker) {
+        Worker = startOption(*Resolved);
+        Launched = Worker;
+      }
+    }
+  }
+  if (!Launched)
+    return;
+
+  if (AttrSetClient *Client = Launched->client()) {
+    evalExprWithProgress(*Client,
+                         "((" + Nixpkgs + ").lib.evalModules { modules = [ " +
+                             *Resolved + " ]; }).options",
+                         *Resolved);
+  }
 }
 
 void Controller::actOnDocumentAdd(PathRef File,
@@ -32,12 +105,17 @@ void Controller::actOnDocumentAdd(PathRef File,
         nixf::parse(*Draft->Contents, Diagnostics);
 
     if (!AST) {
-      std::lock_guard G(TUsLock);
-      publishDiagnostics(File, Version, *Src, Diagnostics);
-      TUs.insert_or_assign(File,
-                           std::make_shared<NixTU>(std::move(Diagnostics),
-                                                   std::move(AST), std::nullopt,
-                                                   /*VLA=*/nullptr, Src));
+      {
+        std::lock_guard G(TUsLock);
+        publishDiagnostics(File, Version, *Src, Diagnostics);
+        TUs.insert_or_assign(
+            File, std::make_shared<NixTU>(std::move(Diagnostics),
+                                          std::move(AST), std::nullopt,
+                                          /*VLA=*/nullptr, Src));
+      }
+      // The directive is a first-line comment, still meaningful in a file that
+      // does not parse yet.
+      updateSchemaDirective(File, *Src);
       return;
     }
 
@@ -51,8 +129,8 @@ void Controller::actOnDocumentAdd(PathRef File,
       TUs.insert_or_assign(
           File, std::make_shared<NixTU>(std::move(Diagnostics), std::move(AST),
                                         std::nullopt, std::move(VLA), Src));
-      return;
     }
+    updateSchemaDirective(File, *Src);
   };
   Action();
 }

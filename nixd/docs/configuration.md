@@ -194,6 +194,10 @@ You can also set the `eglot-workspace-configuration` variable globally (by using
     "suppress": [
       "sema-extra-with"
     ]
+  },
+  // Honour a `#:schema <module>` line at the top of a document.
+  "schemaDirective": {
+    "enable": true
   }
 }
 ```
@@ -289,6 +293,47 @@ If you aren't a flakes user with standalone home-manager with a vanilla install 
   }
 }
 ```
+
+#### Schema directive ("schemaDirective")
+
+The `options` above are a property of the *workspace*: every configured option
+set is offered in every attrset of every file. A document can instead name the
+module that declares its own options, on its first line:
+
+```nix
+#:schema ./btc_line.module.nix
+{
+  outputs = {
+    buffer = 16;
+  };
+}
+```
+
+The path is resolved relative to the document's own directory, and evaluated as
+
+```
+((<nixpkgs.expr>).lib.evalModules { modules = [ <path> ]; }).options
+```
+
+For a document that carries the directive, that module *replaces* the
+workspace-configured option sets rather than adding to them — a config that
+says which options it accepts does not also want every unrelated NixOS option.
+Documents without a directive are unaffected.
+
+The spelling is [taplo]'s, so a generator that emits a JSON Schema for a TOML
+config and a module for a Nix config can write the same line into both.
+
+Because the path is named by a file you merely opened rather than by your
+editor settings, it must resolve inside the document's own directory or the
+workspace root; anything else is refused and logged. Set
+
+```jsonc
+{ "schemaDirective": { "enable": false } }
+```
+
+to turn the whole thing off.
+
+[taplo]: https://taplo.tamasfe.dev/configuration/directives.html
 
 ## Q & A
 
