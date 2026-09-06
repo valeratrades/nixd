@@ -15,6 +15,10 @@ class AttrSetClient : public lspserver::LSPServer {
                              lspserver::Callback<EvalExprResponse> Reply)>
       EvalExpr;
 
+  llvm::unique_function<void(const EvalStringParams &Params,
+                             lspserver::Callback<EvalStringResponse> Reply)>
+      EvalString;
+
   llvm::unique_function<void(const AttrPathInfoParams &Params,
                              lspserver::Callback<AttrPathInfoResponse> Reply)>
       AttrPathInfo;
@@ -43,6 +47,13 @@ public:
   void evalExpr(const EvalExprParams &Params,
                 lspserver::Callback<EvalExprResponse> Reply) {
     return EvalExpr(Params, std::move(Reply));
+  }
+
+  /// \brief Request eval some expression to a string.
+  /// Does not disturb the value held by \p evalExpr.
+  void evalString(const EvalStringParams &Params,
+                  lspserver::Callback<EvalStringResponse> Reply) {
+    return EvalString(Params, std::move(Reply));
   }
 
   void attrpathInfo(const AttrPathInfoParams &Params,

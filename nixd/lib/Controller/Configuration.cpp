@@ -40,7 +40,8 @@ bool nixd::fromJSON(const Value &Params, Configuration::NixpkgsProvider &R,
 bool nixd::fromJSON(const Value &Params, Configuration::SchemaDirective &R,
                     llvm::json::Path P) {
   ObjectMapper O(Params, P);
-  return O && O.mapOptional("enable", R.enable);
+  return O && O.mapOptional("enable", R.enable) &&
+         O.mapOptional("validate", R.validate);
 }
 
 bool nixd::fromJSON(const Value &Params, Configuration &R, llvm::json::Path P) {

@@ -28,6 +28,7 @@ namespace nixd {
 namespace rpcMethod {
 
 constexpr inline std::string_view EvalExpr = "attrset/evalExpr";
+constexpr inline std::string_view EvalString = "attrset/evalString";
 constexpr inline std::string_view AttrPathInfo = "attrset/attrpathInfo";
 constexpr inline std::string_view AttrPathComplete = "attrset/attrpathComplete";
 constexpr inline std::string_view OptionInfo = "attrset/optionInfo";
@@ -38,6 +39,14 @@ constexpr inline std::string_view Exit = "exit";
 
 using EvalExprParams = std::string;
 using EvalExprResponse = std::optional<std::string>;
+
+/// \brief Evaluate an expression to a string, without retaining it.
+///
+/// Unlike \p EvalExpr, which evaluates *into* the worker's held value, this
+/// leaves the worker untouched: a query may be answered by a worker whose held
+/// value is still serving completion.
+using EvalStringParams = std::string;
+using EvalStringResponse = std::string;
 
 /// \brief A list of strings that "select"s into a attribute set.
 using Selector = std::vector<std::string>;

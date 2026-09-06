@@ -39,6 +39,10 @@ struct Configuration {
     /// Off by default: it evaluates a module named by a file the user merely
     /// opened, which nixd otherwise never does.
     bool enable = false;
+
+    /// \brief Also evaluate such a document against its module, reporting
+    /// values that do not typecheck.
+    bool validate = true;
   } schemaDirective;
 };
 

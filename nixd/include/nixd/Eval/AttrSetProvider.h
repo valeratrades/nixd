@@ -48,6 +48,13 @@ public:
   void onEvalExpr(const EvalExprParams &Name,
                   lspserver::Callback<EvalExprResponse> Reply);
 
+  /// \brief Eval an expression to a string, retaining nothing.
+  ///
+  /// The value held by \p onEvalExpr is left alone, so this may be asked of a
+  /// worker that is concurrently serving completion from it.
+  void onEvalString(const EvalStringParams &Expr,
+                    lspserver::Callback<EvalStringResponse> Reply);
+
   /// \brief Query attrpath information.
   void onAttrPathInfo(const AttrPathInfoParams &AttrPath,
                       lspserver::Callback<AttrPathInfoResponse> Reply);
