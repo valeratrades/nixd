@@ -10,6 +10,7 @@
 #include "nixd/Eval/AttrSetClient.h"
 #include "nixf/Basic/Diagnostic.h"
 
+#include <boost/asio/steady_timer.hpp>
 #include <boost/asio/thread_pool.hpp>
 
 #include <set>
@@ -63,6 +64,37 @@ private:
   /// \brief Drop \p File's claim on its schema worker, retiring the worker if
   /// it was the last claim.
   void releaseSchemaDirective(lspserver::PathRef File);
+
+  std::mutex EvalDiagsLock;
+  /// Diagnostics from evaluating a document against its `#:schema` module.
+  /// Held between edits: they are republished with every parse-diagnostic
+  /// update, so that a keystroke does not blink them out and back.
+  llvm::StringMap<std::vector<lspserver::Diagnostic>>
+      EvalDiags; // GUARDED_BY(EvalDiagsLock)
+  /// Bumped per scheduled run. A reply stamped with anything but the current
+  /// value describes a buffer that has since changed, and is dropped.
+  llvm::StringMap<std::int64_t> EvalSerial; // GUARDED_BY(EvalDiagsLock)
+  /// One timer per document; re-arming cancels the wait already pending, which
+  /// is the whole of the debounce.
+  llvm::StringMap<std::unique_ptr<boost::asio::steady_timer>>
+      ValidateTimers; // GUARDED_BY(EvalDiagsLock)
+
+  /// \brief Debounce a type-check of \p File against its `#:schema` module.
+  ///
+  /// Cheap and non-blocking: the work happens on \p Pool once the buffer has
+  /// been still for a moment.
+  void scheduleValidation(lspserver::PathRef File,
+                          std::optional<std::int64_t> Version);
+
+  /// \brief Ask \p File's schema worker which of its options fail, and why.
+  void validateDocument(lspserver::PathRef File,
+                        std::optional<std::int64_t> Version,
+                        std::int64_t Serial);
+
+  /// \brief Install \p Diags as \p File's eval diagnostics and republish.
+  void commitEvalDiags(lspserver::PathRef File,
+                       std::optional<std::int64_t> Version, std::int64_t Serial,
+                       std::vector<lspserver::Diagnostic> Diags);
 
   /// Root reported at `initialize`; the outer bound on what a `#:schema`
   /// directive may point at.

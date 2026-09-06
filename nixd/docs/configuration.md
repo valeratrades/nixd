@@ -333,6 +333,35 @@ workspace root; anything else is refused and logged. Set
 
 to turn the whole thing off.
 
+##### Validation
+
+Naming the module is also the only way nixd learns that a document *is* a
+module, so such a document is additionally evaluated against it, and values that
+do not typecheck are reported where they are written:
+
+```nix
+#:schema ./btc_line.module.nix
+{
+  outputs = {
+    buffer = "16";  # A definition for option `outputs.buffer' is not of type `signed integer'.
+  };
+}
+```
+
+Every failing option is reported at once, not just the first. An option the
+document does not mention — one that is mandatory and missing, or one it
+misspells — is reported on the nearest enclosing attribute it does write, and a
+module that fails to evaluate at all is reported on the document's first line.
+
+Evaluation is debounced, and runs on the worker that already holds the module,
+so it costs a few milliseconds rather than a fresh `evalModules`. Set
+
+```jsonc
+{ "schemaDirective": { "validate": false } }
+```
+
+to keep completion and hover but drop the diagnostics.
+
 [taplo]: https://taplo.tamasfe.dev/configuration/directives.html
 
 ## Q & A

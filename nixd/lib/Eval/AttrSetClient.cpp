@@ -11,6 +11,8 @@ AttrSetClient::AttrSetClient(std::unique_ptr<lspserver::InboundPort> In,
                              std::unique_ptr<lspserver::OutboundPort> Out)
     : LSPServer(std::move(In), std::move(Out)) {
   EvalExpr = mkOutMethod<EvalExprParams, EvalExprResponse>(rpcMethod::EvalExpr);
+  EvalString =
+      mkOutMethod<EvalStringParams, EvalStringResponse>(rpcMethod::EvalString);
   AttrPathInfo = mkOutMethod<AttrPathInfoParams, AttrPathInfoResponse>(
       rpcMethod::AttrPathInfo);
   AttrPathComplete =

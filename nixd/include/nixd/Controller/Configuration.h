@@ -36,6 +36,10 @@ struct Configuration {
     /// \brief Honour a `#:schema <module>` line at the top of a document,
     /// using that module's options for it instead of the configured ones.
     bool enable = true;
+
+    /// \brief Also evaluate such a document against its module, reporting
+    /// values that do not typecheck.
+    bool validate = true;
   } schemaDirective;
 };
 

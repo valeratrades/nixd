@@ -265,6 +265,8 @@ AttrSetProvider::AttrSetProvider(std::unique_ptr<InboundPort> In,
       State(new nix::EvalState({}, nix::openStore(), nix::fetchSettings,
                                nix::evalSettings)) {
   Registry.addMethod(rpcMethod::EvalExpr, this, &AttrSetProvider::onEvalExpr);
+  Registry.addMethod(rpcMethod::EvalString, this,
+                     &AttrSetProvider::onEvalString);
   Registry.addMethod(rpcMethod::AttrPathInfo, this,
                      &AttrSetProvider::onAttrPathInfo);
   Registry.addMethod(rpcMethod::AttrPathComplete, this,
@@ -290,6 +292,24 @@ void AttrSetProvider::onEvalExpr(
     Reply(error(Err.what()));
     return;
   }
+}
+
+void AttrSetProvider::onEvalString(
+    const EvalStringParams &Expr,
+    lspserver::Callback<EvalStringResponse> Reply) {
+  Reply([&]() -> llvm::Expected<EvalStringResponse> {
+    try {
+      nix::Expr *AST = state().parseExprFromString(Expr, state().rootPath("."));
+      nix::Value V;
+      state().eval(AST, V);
+      return std::string(
+          state().forceStringNoCtx(V, nix::noPos, "while evaluating a string"));
+    } catch (const nix::BaseError &Err) {
+      return error(Err.info().msg.str());
+    } catch (const std::exception &Err) {
+      return error(Err.what());
+    }
+  }());
 }
 
 void AttrSetProvider::onAttrPathInfo(

@@ -112,6 +112,12 @@ void Controller::publishDiagnostics(
       });
     }
   }
+  {
+    std::lock_guard _(EvalDiagsLock);
+    if (auto It = EvalDiags.find(File); It != EvalDiags.end())
+      LSPDiags.insert(LSPDiags.end(), It->second.begin(), It->second.end());
+  }
+
   PublishDiagnostic({
       .uri = URIForFile::canonicalize(File, File),
       .diagnostics = std::move(LSPDiags),
